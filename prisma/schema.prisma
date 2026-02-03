@@ -1,0 +1,174 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id                         String   @id @default(cuid())
+  name                       String
+  slug                       String   @unique
+  issuer                     String
+  allowedGrants              String[] @default(["authorization_code", "client_credentials", "refresh_token", "urn:ietf:params:oauth:grant-type:device_code"])
+  allowedScopes              String[] @default(["openid", "profile", "email", "offline_access"])
+  accessTokenTtl             Int      @default(3600)
+  refreshTokenTtl            Int      @default(2592000)
+  authorizationCodeTtl       Int      @default(600)
+  deviceCodeTtl              Int      @default(1800)
+  deviceCodeInterval         Int      @default(5)
+  requirePkce                Boolean  @default(true)
+  allowedRedirectUriPatterns String[]
+  metadata                   Json?
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  signingKeys        SigningKey[]
+  clients            Client[]
+  authorizationCodes AuthorizationCode[]
+  refreshTokens      RefreshToken[]
+  deviceCodes        DeviceCode[]
+  revokedTokens      RevokedToken[]
+
+  @@map("tenants")
+}
+
+model SigningKey {
+  id         String    @id @default(cuid())
+  tenantId   String
+  kid        String
+  algorithm  String    @default("RS256")
+  publicKey  String
+  privateKey String
+  isPrimary  Boolean   @default(false)
+  expiresAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, kid])
+  @@index([tenantId])
+  @@index([tenantId, isPrimary])
+  @@map("signing_keys")
+}
+
+model Client {
+  id               String   @id @default(cuid())
+  tenantId         String
+  clientId         String
+  clientSecretHash String?
+  clientType       String   @default("confidential")
+  authMethod       String   @default("client_secret_basic")
+  name             String
+  description      String?
+  redirectUris     String[]
+  allowedGrants    String[] @default(["authorization_code", "refresh_token"])
+  allowedScopes    String[] @default(["openid", "profile", "email"])
+  defaultScopes    String[]
+  jwksUri          String?
+  jwks             Json?
+  accessTokenTtl   Int?
+  refreshTokenTtl  Int?
+  requireConsent   Boolean  @default(true)
+  firstParty       Boolean  @default(false)
+  metadata         Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, clientId])
+  @@index([tenantId])
+  @@map("clients")
+}
+
+model AuthorizationCode {
+  id                  String    @id @default(cuid())
+  tenantId            String
+  clientId            String
+  userId              String
+  codeHash            String
+  redirectUri         String
+  scope               String?
+  codeChallenge       String
+  codeChallengeMethod String    @default("S256")
+  nonce               String?
+  state               String?
+  expiresAt           DateTime
+  issuedAt            DateTime  @default(now())
+  usedAt              DateTime?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, codeHash])
+  @@index([tenantId, codeHash])
+  @@index([expiresAt])
+  @@map("authorization_codes")
+}
+
+model RefreshToken {
+  id            String    @id @default(cuid())
+  tenantId      String
+  clientId      String
+  userId        String?
+  tokenHash     String
+  scope         String?
+  expiresAt     DateTime
+  issuedAt      DateTime  @default(now())
+  revokedAt     DateTime?
+  parentTokenId String?
+  familyId      String
+  metadata      Json?
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, tokenHash])
+  @@index([tenantId, tokenHash])
+  @@index([tenantId, familyId])
+  @@index([tenantId, userId, clientId])
+  @@index([tenantId, userId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+model DeviceCode {
+  id             String    @id @default(cuid())
+  tenantId       String
+  clientId       String
+  deviceCodeHash String
+  userCode       String
+  scope          String?
+  expiresAt      DateTime
+  interval       Int       @default(5)
+  issuedAt       DateTime  @default(now())
+  lastPolledAt   DateTime?
+  userId         String?
+  status         String    @default("pending")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, deviceCodeHash])
+  @@unique([tenantId, userCode])
+  @@index([tenantId, deviceCodeHash])
+  @@index([tenantId, userCode])
+  @@index([expiresAt])
+  @@map("device_codes")
+}
+
+model RevokedToken {
+  id        String   @id @default(cuid())
+  tenantId  String
+  tokenId   String
+  tokenType String
+  expiresAt DateTime
+  revokedAt DateTime @default(now())
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, tokenId])
+  @@index([tenantId, tokenId])
+  @@index([expiresAt])
+  @@map("revoked_tokens")
+}
