@@ -28,6 +28,11 @@ GET /:tenant/authorize
   &code_challenge=CODE_CHALLENGE
   &code_challenge_method=S256
   &nonce=RANDOM_NONCE
+  &response_mode=query
+  &prompt=consent
+  &max_age=3600
+  &acr_values=urn:example:mfa
+  &claims={"id_token":{"email":{"essential":true}}}
 ```
 
 | Parameter | Required | Description |
@@ -40,6 +45,12 @@ GET /:tenant/authorize
 | code_challenge | Yes | PKCE code challenge |
 | code_challenge_method | Yes | Must be `S256` |
 | nonce | No | Random value for ID token binding |
+| response_mode | No | Response delivery: `query`, `fragment`, or `form_post` |
+| prompt | No | User interaction: `none`, `login`, or `consent` |
+| max_age | No | Maximum authentication age in seconds |
+| acr_values | No | Requested authentication context class |
+| claims | No | JSON object requesting specific claims |
+| login_hint | No | Hint for user identifier |
 
 ### Authorization Response
 
@@ -203,15 +214,53 @@ Possible responses:
 
 ## Scopes
 
-### Standard Scopes
+### Standard OpenID Connect Scopes
 
-| Scope | Description |
-|-------|-------------|
-| openid | Request ID token |
-| profile | Access to name, picture |
-| email | Access to email, email_verified |
-| offline_access | Request refresh token |
+| Scope | Claims |
+|-------|--------|
+| openid | sub |
+| profile | name, given_name, family_name, middle_name, nickname, preferred_username, profile, picture, website, gender, birthdate, zoneinfo, locale, updated_at |
+| email | email, email_verified |
+| address | address (formatted, street_address, locality, region, postal_code, country) |
+| phone | phone_number, phone_number_verified |
+| offline_access | Enables refresh token issuance |
 
 ### Custom Scopes
 
 Define custom scopes per tenant in the tenant configuration. Clients must be explicitly granted access to scopes they can request.
+
+## Response Modes
+
+The authorization response can be delivered in three ways:
+
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| query | Parameters in URL query string | Default for code response |
+| fragment | Parameters in URL fragment (#) | For implicit flows |
+| form_post | HTML form auto-submitted via POST | Most secure option |
+
+The `form_post` mode is recommended when available because:
+
+* Authorization code is not exposed in browser history
+* Code is not logged in server access logs
+* Code is not leaked via Referer header
+
+## Prompt Parameter
+
+Control user interaction during authorization:
+
+| Value | Behavior |
+|-------|----------|
+| none | No user interaction. Fails if login or consent needed |
+| login | Force re-authentication even if session exists |
+| consent | Force consent prompt even if previously granted |
+
+## Authentication Context
+
+Request specific authentication assurance using `acr_values`. The ID token will include:
+
+| Claim | Description |
+|-------|-------------|
+| acr | Authentication Context Class Reference |
+| amr | Authentication Methods References (array) |
+| auth_time | Time when authentication occurred |

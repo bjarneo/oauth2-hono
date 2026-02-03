@@ -101,3 +101,10 @@ export function generateId(): string {
 export function generateFamilyId(): string {
   return generateRandomBase64Url(16);
 }
+
+/**
+ * Generate a secure random token (generic)
+ */
+export function generateSecureToken(length: number = 32): string {
+  return generateRandomBase64Url(length);
+}

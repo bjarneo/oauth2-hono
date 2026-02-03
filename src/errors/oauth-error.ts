@@ -17,6 +17,9 @@ import {
   ERROR_EXPIRED_TOKEN,
   ERROR_INVALID_TOKEN,
   ERROR_INSUFFICIENT_SCOPE,
+  ERROR_LOGIN_REQUIRED,
+  ERROR_CONSENT_REQUIRED,
+  ERROR_INTERACTION_REQUIRED,
 } from './error-codes.js';
 
 /**
@@ -176,5 +179,17 @@ export class OAuthError extends Error {
 
   static insufficientScope(description?: string): OAuthError {
     return new OAuthError(ERROR_INSUFFICIENT_SCOPE, description);
+  }
+
+  static loginRequired(description?: string, state?: string): OAuthError {
+    return new OAuthError(ERROR_LOGIN_REQUIRED, description, { state });
+  }
+
+  static consentRequired(description?: string, state?: string): OAuthError {
+    return new OAuthError(ERROR_CONSENT_REQUIRED, description, { state });
+  }
+
+  static interactionRequired(description?: string, state?: string): OAuthError {
+    return new OAuthError(ERROR_INTERACTION_REQUIRED, description, { state });
   }
 }

@@ -11,6 +11,9 @@ import {
   createRevokeRoutes,
   createIntrospectRoutes,
   createDeviceAuthorizationRoutes,
+  createUserInfoRoutes,
+  createEndSessionRoutes,
+  createRegisterRoutes,
 } from './routes/oauth/index.js';
 import { createOpenIDConfigurationRoutes, createJWKSRoutes } from './routes/discovery/index.js';
 
@@ -25,6 +28,18 @@ export interface OAuth2ServerOptions {
   };
   enableCors?: boolean;
   enableLogging?: boolean;
+  /**
+   * Allow open client registration without authentication
+   */
+  allowOpenRegistration?: boolean;
+  /**
+   * Initial access token for client registration
+   */
+  registrationAccessToken?: string;
+  /**
+   * Callback for logout events
+   */
+  onLogout?: (tenantId: string, userId: string, clientId?: string) => Promise<void>;
 }
 
 /**
@@ -39,6 +54,9 @@ export function createOAuth2Server(options: OAuth2ServerOptions): Hono<{ Variabl
     rateLimit = { windowMs: 60000, maxRequests: 100 },
     enableCors = true,
     enableLogging = true,
+    allowOpenRegistration = false,
+    registrationAccessToken,
+    onLogout,
   } = options;
 
   const app = new Hono<{ Variables: OAuthVariables }>();
@@ -115,6 +133,36 @@ export function createOAuth2Server(options: OAuth2ServerOptions): Hono<{ Variabl
     createDeviceAuthorizationRoutes({
       storage,
       verificationUri: verificationUri ?? `${baseUrl}/:tenant/device`,
+    })
+  );
+
+  // UserInfo endpoint
+  tenantRoutes.route(
+    '/userinfo',
+    createUserInfoRoutes({
+      signingKeyStorage: storage.signingKeys,
+      userAuthenticator,
+    })
+  );
+
+  // End Session (Logout) endpoint
+  tenantRoutes.route(
+    '/end_session',
+    createEndSessionRoutes({
+      storage,
+      userAuthenticator,
+      onLogout,
+    })
+  );
+
+  // Dynamic Client Registration endpoint
+  tenantRoutes.route(
+    '/register',
+    createRegisterRoutes({
+      storage,
+      baseUrl,
+      allowOpenRegistration,
+      initialAccessToken: registrationAccessToken,
     })
   );
 

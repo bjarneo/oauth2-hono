@@ -1,7 +1,7 @@
 import type { Tenant, SigningKey } from '../types/tenant.js';
 import type { OAuthClient } from '../types/client.js';
 import type { User } from '../types/user.js';
-import type { TokenResponse, IdTokenPayload, AccessTokenPayload } from '../types/index.js';
+import type { TokenResponse, IdTokenPayload, AccessTokenPayload, ClaimsRequest } from '../types/index.js';
 import type { IRefreshTokenStorage } from '../storage/interfaces/token-storage.js';
 import { signAccessToken, signIdToken } from '../crypto/jwt.js';
 import { scopeService } from './scope-service.js';
@@ -17,6 +17,9 @@ export interface TokenGenerationOptions {
   refreshTokenStorage?: IRefreshTokenStorage;
   parentRefreshTokenId?: string;
   familyId?: string;
+  sessionId?: string;
+  claims?: ClaimsRequest;
+  acr?: string;
 }
 
 /**
@@ -37,6 +40,9 @@ export class TokenService {
       refreshTokenStorage,
       parentRefreshTokenId,
       familyId,
+      sessionId,
+      claims,
+      acr,
     } = options;
 
     const now = Math.floor(Date.now() / 1000);
@@ -83,6 +89,7 @@ export class TokenService {
         expiresAt,
         parentTokenId: parentRefreshTokenId,
         familyId,
+        sessionId,
       });
 
       response.refresh_token = refreshToken;
@@ -90,34 +97,167 @@ export class TokenService {
 
     // Generate ID token if openid scope is present and user is provided
     if (scopeService.isOpenIdScope(scopes) && user) {
-      const idTokenPayload: IdTokenPayload = {
-        iss: tenant.issuer,
-        sub: user.id,
-        aud: client.clientId,
-        exp: now + accessTokenTtl, // ID token same lifetime as access token
-        iat: now,
-        auth_time: now,
+      const idTokenPayload = this.buildIdTokenPayload({
+        tenant,
+        client,
+        user,
+        scopes,
         nonce,
-      };
-
-      // Add profile claims if profile scope is present
-      if (scopeService.hasScope(scopes, 'profile')) {
-        if (user.name) idTokenPayload.name = user.name;
-        if (user.picture) idTokenPayload.picture = user.picture;
-      }
-
-      // Add email claims if email scope is present
-      if (scopeService.hasScope(scopes, 'email')) {
-        if (user.email) idTokenPayload.email = user.email;
-        if (user.emailVerified !== undefined) {
-          idTokenPayload.email_verified = user.emailVerified;
-        }
-      }
+        now,
+        accessTokenTtl,
+        claims,
+        acr,
+        sessionId,
+      });
 
       response.id_token = await signIdToken(idTokenPayload, signingKey);
     }
 
     return response;
+  }
+
+  /**
+   * Build ID token payload with all applicable claims
+   */
+  private buildIdTokenPayload(options: {
+    tenant: Tenant;
+    client: OAuthClient;
+    user: User;
+    scopes: string[];
+    nonce?: string;
+    now: number;
+    accessTokenTtl: number;
+    claims?: ClaimsRequest;
+    acr?: string;
+    sessionId?: string;
+  }): IdTokenPayload {
+    const { tenant, client, user, scopes, nonce, now, accessTokenTtl, claims, acr, sessionId } = options;
+
+    const idTokenPayload: IdTokenPayload = {
+      iss: tenant.issuer,
+      sub: user.id,
+      aud: client.clientId,
+      exp: now + accessTokenTtl, // ID token same lifetime as access token
+      iat: now,
+      auth_time: user.authTime ?? now,
+      nonce,
+    };
+
+    // Add authentication context claims
+    if (acr || user.acr) {
+      idTokenPayload.acr = acr || user.acr;
+    }
+
+    if (user.amr && user.amr.length > 0) {
+      idTokenPayload.amr = user.amr;
+    }
+
+    // Add authorized party if audience could have multiple values
+    idTokenPayload.azp = client.clientId;
+
+    // Add session ID for logout support
+    if (sessionId) {
+      idTokenPayload.sid = sessionId;
+    }
+
+    // Add profile claims if profile scope is present
+    if (scopeService.hasScope(scopes, 'profile')) {
+      if (user.name) idTokenPayload.name = user.name;
+      if (user.givenName) idTokenPayload.given_name = user.givenName;
+      if (user.familyName) idTokenPayload.family_name = user.familyName;
+      if (user.middleName) idTokenPayload.middle_name = user.middleName;
+      if (user.nickname) idTokenPayload.nickname = user.nickname;
+      if (user.preferredUsername) idTokenPayload.preferred_username = user.preferredUsername;
+      if (user.profile) idTokenPayload.profile = user.profile;
+      if (user.picture) idTokenPayload.picture = user.picture;
+      if (user.website) idTokenPayload.website = user.website;
+      if (user.gender) idTokenPayload.gender = user.gender;
+      if (user.birthdate) idTokenPayload.birthdate = user.birthdate;
+      if (user.zoneinfo) idTokenPayload.zoneinfo = user.zoneinfo;
+      if (user.locale) idTokenPayload.locale = user.locale;
+      if (user.updatedAt) idTokenPayload.updated_at = user.updatedAt;
+    }
+
+    // Add email claims if email scope is present
+    if (scopeService.hasScope(scopes, 'email')) {
+      if (user.email) idTokenPayload.email = user.email;
+      if (user.emailVerified !== undefined) {
+        idTokenPayload.email_verified = user.emailVerified;
+      }
+    }
+
+    // Add address claims if address scope is present
+    if (scopeService.hasScope(scopes, 'address')) {
+      if (user.address) idTokenPayload.address = user.address;
+    }
+
+    // Add phone claims if phone scope is present
+    if (scopeService.hasScope(scopes, 'phone')) {
+      if (user.phoneNumber) idTokenPayload.phone_number = user.phoneNumber;
+      if (user.phoneNumberVerified !== undefined) {
+        idTokenPayload.phone_number_verified = user.phoneNumberVerified;
+      }
+    }
+
+    // Process claims parameter if provided
+    if (claims?.id_token) {
+      this.applyClaimsRequest(idTokenPayload, user, claims.id_token);
+    }
+
+    return idTokenPayload;
+  }
+
+  /**
+   * Apply claims request to add specific requested claims
+   */
+  private applyClaimsRequest(
+    payload: IdTokenPayload,
+    user: User,
+    requestedClaims: Record<string, any>
+  ): void {
+    for (const claimName of Object.keys(requestedClaims)) {
+      // Skip if claim is already set
+      if ((payload as any)[claimName] !== undefined) {
+        continue;
+      }
+
+      // Map claim name to user property
+      const userValue = this.getUserClaimValue(user, claimName);
+      if (userValue !== undefined) {
+        (payload as any)[claimName] = userValue;
+      }
+    }
+  }
+
+  /**
+   * Get a claim value from the user object
+   */
+  private getUserClaimValue(user: User, claimName: string): any {
+    const claimMap: Record<string, () => any> = {
+      sub: () => user.id,
+      name: () => user.name,
+      given_name: () => user.givenName,
+      family_name: () => user.familyName,
+      middle_name: () => user.middleName,
+      nickname: () => user.nickname,
+      preferred_username: () => user.preferredUsername,
+      profile: () => user.profile,
+      picture: () => user.picture,
+      website: () => user.website,
+      gender: () => user.gender,
+      birthdate: () => user.birthdate,
+      zoneinfo: () => user.zoneinfo,
+      locale: () => user.locale,
+      updated_at: () => user.updatedAt,
+      email: () => user.email,
+      email_verified: () => user.emailVerified,
+      address: () => user.address,
+      phone_number: () => user.phoneNumber,
+      phone_number_verified: () => user.phoneNumberVerified,
+    };
+
+    const getter = claimMap[claimName];
+    return getter ? getter() : undefined;
   }
 
   /**

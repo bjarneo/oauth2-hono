@@ -65,6 +65,23 @@ Each grant type has a dedicated handler in `src/grants/`:
 
 The authorization endpoint is handled separately in `grants/authorization-code/authorize.ts` because it has different concerns (user authentication, consent).
 
+### Routes
+
+HTTP routes are organized by function:
+
+| Route | Path | Purpose |
+|-------|------|---------|
+| authorize | `/:tenant/authorize` | Authorization endpoint |
+| token | `/:tenant/token` | Token endpoint |
+| userinfo | `/:tenant/userinfo` | UserInfo endpoint (OIDC) |
+| revoke | `/:tenant/revoke` | Token revocation |
+| introspect | `/:tenant/introspect` | Token introspection |
+| end_session | `/:tenant/end_session` | Logout endpoint (OIDC) |
+| device_authorization | `/:tenant/device_authorization` | Device flow |
+| register | `/:tenant/register` | Dynamic client registration |
+| openid-configuration | `/:tenant/.well-known/openid-configuration` | Discovery |
+| jwks | `/:tenant/.well-known/jwks.json` | Public keys |
+
 ### Services
 
 Services encapsulate business logic:

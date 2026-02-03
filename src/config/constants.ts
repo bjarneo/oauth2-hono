@@ -83,14 +83,44 @@ export const DEFAULT_RATE_LIMIT_MAX_REQUESTS = 100;
 export const OPENID_SCOPE = 'openid' as const;
 export const PROFILE_SCOPE = 'profile' as const;
 export const EMAIL_SCOPE = 'email' as const;
+export const ADDRESS_SCOPE = 'address' as const;
+export const PHONE_SCOPE = 'phone' as const;
 export const OFFLINE_ACCESS_SCOPE = 'offline_access' as const;
 
 export const STANDARD_SCOPES = [
   OPENID_SCOPE,
   PROFILE_SCOPE,
   EMAIL_SCOPE,
+  ADDRESS_SCOPE,
+  PHONE_SCOPE,
   OFFLINE_ACCESS_SCOPE,
 ] as const;
+
+// Response modes
+export const RESPONSE_MODE_QUERY = 'query' as const;
+export const RESPONSE_MODE_FRAGMENT = 'fragment' as const;
+export const RESPONSE_MODE_FORM_POST = 'form_post' as const;
+
+export const SUPPORTED_RESPONSE_MODES = [
+  RESPONSE_MODE_QUERY,
+  RESPONSE_MODE_FRAGMENT,
+  RESPONSE_MODE_FORM_POST,
+] as const;
+
+// ACR values (Authentication Context Class Reference)
+export const ACR_LOA1 = 'urn:mace:incommon:iap:bronze' as const; // Basic auth
+export const ACR_LOA2 = 'urn:mace:incommon:iap:silver' as const; // MFA
+export const ACR_LOA3 = 'urn:mace:incommon:iap:gold' as const; // Strong MFA
+
+// AMR values (Authentication Methods References)
+export const AMR_PASSWORD = 'pwd' as const;
+export const AMR_OTP = 'otp' as const;
+export const AMR_SMS = 'sms' as const;
+export const AMR_FINGERPRINT = 'fpt' as const;
+export const AMR_FACE = 'face' as const;
+export const AMR_HARDWARE_KEY = 'hwk' as const;
+export const AMR_SOFTWARE_KEY = 'swk' as const;
+export const AMR_MFA = 'mfa' as const;
 
 // HTTP headers
 export const HEADER_AUTHORIZATION = 'Authorization';

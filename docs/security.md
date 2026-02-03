@@ -218,3 +218,79 @@ This detects when an attacker obtains a refresh token that has already been rota
 * Use secure authentication methods
 * Require strong passwords or MFA
 * Audit authentication events
+
+## Session Management
+
+### Session ID (sid) Claim
+
+ID tokens include a `sid` claim for session tracking. This enables:
+
+* Correlating multiple tokens to a single session
+* Targeted logout via back-channel notifications
+* Session-based token revocation
+
+### Back-Channel Logout Security
+
+Back-channel logout uses signed JWT tokens to notify clients:
+
+```json
+{
+  "iss": "https://auth.example.com/tenant",
+  "sub": "user-id",
+  "aud": "client-id",
+  "iat": 1234567890,
+  "jti": "unique-token-id",
+  "events": {
+    "http://schemas.openid.net/event/backchannel-logout": {}
+  },
+  "sid": "session-id"
+}
+```
+
+Clients must:
+
+1. Verify the token signature using the JWKS endpoint
+2. Verify the issuer and audience claims
+3. Check for the backchannel-logout event
+4. Respond within 10 seconds
+
+### Logout Token Validation
+
+Logout tokens differ from ID tokens:
+
+| Property | ID Token | Logout Token |
+|----------|----------|--------------|
+| `nonce` | Present | Never present |
+| `events` | Never present | Required |
+| `exp` | Required | Optional |
+
+## OpenID Connect Security
+
+### ID Token Validation
+
+Clients should validate ID tokens:
+
+1. Verify signature using JWKS
+2. Check `iss` matches expected issuer
+3. Check `aud` contains client ID
+4. Check `exp` has not passed
+5. Check `iat` is reasonable
+6. Verify `nonce` if provided in request
+
+### UserInfo Endpoint Security
+
+The UserInfo endpoint:
+
+* Requires valid Bearer token authentication
+* Returns only claims authorized by granted scopes
+* Supports both GET and POST methods
+* Returns consistent `sub` claim matching ID token
+
+### Dynamic Client Registration
+
+When registration is enabled:
+
+* New clients receive cryptographically random credentials
+* Client secrets are hashed before storage
+* Redirect URIs are validated on registration
+* Clients can only read/delete their own registration

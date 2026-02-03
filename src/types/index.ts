@@ -5,7 +5,16 @@ export * from './oauth.js';
 export * from './tenant.js';
 
 // Client types
-export type { OAuthClient, CreateClientInput, UpdateClientInput, ClientType, ClientAuthMethod, AuthenticatedClient } from './client.js';
+export type {
+  OAuthClient,
+  CreateClientInput,
+  UpdateClientInput,
+  ClientType,
+  ClientAuthMethod,
+  AuthenticatedClient,
+  ClientRegistrationRequest,
+  ClientRegistrationResponse,
+} from './client.js';
 
 // Token types
 export * from './token.js';

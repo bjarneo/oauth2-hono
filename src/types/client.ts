@@ -13,6 +13,7 @@ export type ClientType = 'confidential' | 'public';
 export type ClientAuthMethod =
   | 'client_secret_basic'
   | 'client_secret_post'
+  | 'client_secret_jwt'
   | 'private_key_jwt'
   | 'none';
 
@@ -28,6 +29,10 @@ export interface OAuthClient {
   authMethod: ClientAuthMethod;
   name: string;
   description?: string;
+  logoUri?: string;
+  clientUri?: string; // Home page URL
+  policyUri?: string; // Privacy policy URL
+  tosUri?: string; // Terms of service URL
   redirectUris: string[]; // Registered redirect URIs (exact match required)
   allowedGrants: GrantType[];
   allowedScopes: string[];
@@ -38,6 +43,24 @@ export interface OAuthClient {
   refreshTokenTtl?: number; // Override tenant default
   requireConsent?: boolean; // Whether to prompt user for consent
   firstParty?: boolean; // Skip consent for first-party apps
+
+  // Logout configuration
+  postLogoutRedirectUris?: string[]; // Allowed URIs for post-logout redirect
+  backchannelLogoutUri?: string; // Back-channel logout endpoint
+  backchannelLogoutSessionRequired?: boolean; // Require sid in logout token
+  frontchannelLogoutUri?: string; // Front-channel logout endpoint
+  frontchannelLogoutSessionRequired?: boolean; // Require sid in logout
+
+  // Dynamic registration
+  registrationAccessToken?: string; // Token for managing registration
+  registrationClientUri?: string; // URI for managing registration
+
+  // Additional metadata
+  contacts?: string[]; // Contact emails
+  softwareId?: string; // Software identifier
+  softwareVersion?: string; // Software version
+  softwareStatement?: string; // Signed JWT with client metadata
+
   metadata?: Record<string, unknown>;
   createdAt: Date;
   updatedAt: Date;
@@ -72,6 +95,10 @@ export interface CreateClientInput {
   authMethod: ClientAuthMethod;
   name: string;
   description?: string;
+  logoUri?: string;
+  clientUri?: string;
+  policyUri?: string;
+  tosUri?: string;
   redirectUris: string[];
   allowedGrants: GrantType[];
   allowedScopes: string[];
@@ -82,6 +109,15 @@ export interface CreateClientInput {
   refreshTokenTtl?: number;
   requireConsent?: boolean;
   firstParty?: boolean;
+  postLogoutRedirectUris?: string[];
+  backchannelLogoutUri?: string;
+  backchannelLogoutSessionRequired?: boolean;
+  frontchannelLogoutUri?: string;
+  frontchannelLogoutSessionRequired?: boolean;
+  contacts?: string[];
+  softwareId?: string;
+  softwareVersion?: string;
+  softwareStatement?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -91,6 +127,10 @@ export interface CreateClientInput {
 export interface UpdateClientInput {
   name?: string;
   description?: string;
+  logoUri?: string;
+  clientUri?: string;
+  policyUri?: string;
+  tosUri?: string;
   redirectUris?: string[];
   allowedGrants?: GrantType[];
   allowedScopes?: string[];
@@ -101,6 +141,14 @@ export interface UpdateClientInput {
   refreshTokenTtl?: number;
   requireConsent?: boolean;
   firstParty?: boolean;
+  postLogoutRedirectUris?: string[];
+  backchannelLogoutUri?: string;
+  backchannelLogoutSessionRequired?: boolean;
+  frontchannelLogoutUri?: string;
+  frontchannelLogoutSessionRequired?: boolean;
+  contacts?: string[];
+  softwareId?: string;
+  softwareVersion?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -110,4 +158,65 @@ export interface UpdateClientInput {
 export interface AuthenticatedClient {
   client: OAuthClient;
   authMethod: ClientAuthMethod;
+}
+
+/**
+ * Dynamic Client Registration Request
+ * RFC 7591
+ */
+export interface ClientRegistrationRequest {
+  redirect_uris: string[];
+  token_endpoint_auth_method?: ClientAuthMethod;
+  grant_types?: string[];
+  response_types?: string[];
+  client_name?: string;
+  client_uri?: string;
+  logo_uri?: string;
+  scope?: string;
+  contacts?: string[];
+  tos_uri?: string;
+  policy_uri?: string;
+  jwks_uri?: string;
+  jwks?: JsonWebKeySet;
+  software_id?: string;
+  software_version?: string;
+  software_statement?: string;
+  post_logout_redirect_uris?: string[];
+  backchannel_logout_uri?: string;
+  backchannel_logout_session_required?: boolean;
+  frontchannel_logout_uri?: string;
+  frontchannel_logout_session_required?: boolean;
+}
+
+/**
+ * Dynamic Client Registration Response
+ * RFC 7591
+ */
+export interface ClientRegistrationResponse {
+  client_id: string;
+  client_secret?: string;
+  client_id_issued_at?: number;
+  client_secret_expires_at?: number;
+  registration_access_token?: string;
+  registration_client_uri?: string;
+  redirect_uris: string[];
+  token_endpoint_auth_method: ClientAuthMethod;
+  grant_types: string[];
+  response_types: string[];
+  client_name?: string;
+  client_uri?: string;
+  logo_uri?: string;
+  scope?: string;
+  contacts?: string[];
+  tos_uri?: string;
+  policy_uri?: string;
+  jwks_uri?: string;
+  jwks?: JsonWebKeySet;
+  software_id?: string;
+  software_version?: string;
+  post_logout_redirect_uris?: string[];
+  backchannel_logout_uri?: string;
+  backchannel_logout_session_required?: boolean;
+  frontchannel_logout_uri?: string;
+  frontchannel_logout_session_required?: boolean;
 }

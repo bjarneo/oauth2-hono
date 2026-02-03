@@ -2319,7 +2319,7 @@ describe('OAuth2 E2E Tests', () => {
       });
 
       expect(tokenRes.status).toBe(200);
-      const tokens = await tokenRes.json();
+      const tokens = await tokenRes.json() as any;
       const refresh_token = tokens.refresh_token;
       expect(refresh_token).toBeDefined();
 
@@ -2337,11 +2337,308 @@ describe('OAuth2 E2E Tests', () => {
       });
 
       expect(introspectRes.status).toBe(200);
-      const body = await introspectRes.json();
+      const body = await introspectRes.json() as any;
       expect(body.active).toBe(true);
       expect(body.client_id).toBe(confidentialClientId);
       expect(body.sub).toBe('test-user-001');
       expect(body.scope).toContain('offline_access');
+    });
+  });
+
+  // ==========================================================================
+  // UserInfo Endpoint
+  // ==========================================================================
+  describe('UserInfo Endpoint', () => {
+    async function getAccessToken(scopes: string[]): Promise<string> {
+      const codeVerifier = generateCodeVerifier();
+      const codeChallenge = generateCodeChallenge(codeVerifier);
+
+      await userAuthenticator.saveConsent(
+        tenantId,
+        'test-user-001',
+        confidentialClientId,
+        scopes
+      );
+
+      const authUrl = new URL(`http://localhost/${tenantSlug}/authorize`);
+      authUrl.searchParams.set('response_type', 'code');
+      authUrl.searchParams.set('client_id', confidentialClientId);
+      authUrl.searchParams.set('redirect_uri', 'http://localhost:3001/callback');
+      authUrl.searchParams.set('scope', scopes.join(' '));
+      authUrl.searchParams.set('code_challenge', codeChallenge);
+      authUrl.searchParams.set('code_challenge_method', 'S256');
+
+      const authRes = await app.request(authUrl.pathname + authUrl.search);
+      const code = new URL(authRes.headers.get('Location')!).searchParams.get('code');
+
+      const tokenRes = await app.request(`/${tenantSlug}/token`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Authorization': basicAuth(confidentialClientId, confidentialClientSecret),
+        },
+        body: new URLSearchParams({
+          grant_type: 'authorization_code',
+          code: code!,
+          redirect_uri: 'http://localhost:3001/callback',
+          code_verifier: codeVerifier,
+        }),
+      });
+
+      const tokens = await tokenRes.json() as any;
+      return tokens.access_token;
+    }
+
+    it('should return user info for valid access token', async () => {
+      const accessToken = await getAccessToken(['openid', 'profile', 'email']);
+
+      const res = await app.request(`/${tenantSlug}/userinfo`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      });
+
+      expect(res.status).toBe(200);
+      const userInfo = await res.json() as any;
+      expect(userInfo.sub).toBe('test-user-001');
+    });
+
+    it('should include profile claims when profile scope granted', async () => {
+      const accessToken = await getAccessToken(['openid', 'profile']);
+
+      const res = await app.request(`/${tenantSlug}/userinfo`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      });
+
+      expect(res.status).toBe(200);
+      const userInfo = await res.json() as any;
+      expect(userInfo.sub).toBe('test-user-001');
+      expect(userInfo.name).toBe('Test User');
+    });
+
+    it('should include email claims when email scope granted', async () => {
+      const accessToken = await getAccessToken(['openid', 'email']);
+
+      const res = await app.request(`/${tenantSlug}/userinfo`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      });
+
+      expect(res.status).toBe(200);
+      const userInfo = await res.json() as any;
+      expect(userInfo.sub).toBe('test-user-001');
+      expect(userInfo.email).toBe('test@example.com');
+      expect(userInfo.email_verified).toBe(true);
+    });
+
+    it('should reject request without access token', async () => {
+      const res = await app.request(`/${tenantSlug}/userinfo`);
+
+      expect(res.status).toBe(400);
+    });
+
+    it('should reject request with invalid access token', async () => {
+      const res = await app.request(`/${tenantSlug}/userinfo`, {
+        headers: {
+          'Authorization': 'Bearer invalid-token',
+        },
+      });
+
+      expect(res.status).toBe(401);
+    });
+
+    it('should support POST method', async () => {
+      const accessToken = await getAccessToken(['openid']);
+
+      const res = await app.request(`/${tenantSlug}/userinfo`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          access_token: accessToken,
+        }),
+      });
+
+      expect(res.status).toBe(200);
+      const userInfo = await res.json() as any;
+      expect(userInfo.sub).toBe('test-user-001');
+    });
+  });
+
+  // ==========================================================================
+  // End Session (Logout) Endpoint
+  // ==========================================================================
+  describe('End Session Endpoint', () => {
+    it('should return logout confirmation page without parameters', async () => {
+      const res = await app.request(`/${tenantSlug}/end_session`);
+
+      expect(res.status).toBe(200);
+      const html = await res.text();
+      expect(html).toContain('Logged Out');
+    });
+
+    it('should accept POST method', async () => {
+      const res = await app.request(`/${tenantSlug}/end_session`, {
+        method: 'POST',
+      });
+
+      expect(res.status).toBe(200);
+    });
+
+    it('should reject invalid post_logout_redirect_uri', async () => {
+      const res = await app.request(
+        `/${tenantSlug}/end_session?post_logout_redirect_uri=http://evil.com&client_id=${confidentialClientId}`
+      );
+
+      expect(res.status).toBe(400);
+    });
+  });
+
+  // ==========================================================================
+  // Dynamic Client Registration
+  // ==========================================================================
+  describe('Dynamic Client Registration', () => {
+    it('should register a new public client', async () => {
+      const res = await app.request(`/${tenantSlug}/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          redirect_uris: ['https://example.com/callback'],
+          token_endpoint_auth_method: 'none',
+          client_name: 'Test Dynamic Client',
+          grant_types: ['authorization_code', 'refresh_token'],
+        }),
+      });
+
+      // Should fail without initial access token when allowOpenRegistration is false
+      expect(res.status).toBe(400);
+    });
+  });
+
+  // ==========================================================================
+  // Response Mode Support
+  // ==========================================================================
+  describe('Response Mode Support', () => {
+    it('should support response_mode=form_post', async () => {
+      const codeVerifier = generateCodeVerifier();
+      const codeChallenge = generateCodeChallenge(codeVerifier);
+
+      await userAuthenticator.saveConsent(
+        tenantId,
+        'test-user-001',
+        confidentialClientId,
+        ['openid', 'profile']
+      );
+
+      const authUrl = new URL(`http://localhost/${tenantSlug}/authorize`);
+      authUrl.searchParams.set('response_type', 'code');
+      authUrl.searchParams.set('client_id', confidentialClientId);
+      authUrl.searchParams.set('redirect_uri', 'http://localhost:3001/callback');
+      authUrl.searchParams.set('scope', 'openid profile');
+      authUrl.searchParams.set('code_challenge', codeChallenge);
+      authUrl.searchParams.set('code_challenge_method', 'S256');
+      authUrl.searchParams.set('response_mode', 'form_post');
+
+      const res = await app.request(authUrl.pathname + authUrl.search);
+
+      // response_mode=form_post returns HTML with auto-submit form
+      expect(res.status).toBe(200);
+      const html = await res.text();
+      expect(html).toContain('<form');
+      expect(html).toContain('method="POST"');
+      expect(html).toContain('action="http://localhost:3001/callback"');
+      expect(html).toContain('name="code"');
+    });
+
+    it('should support response_mode=fragment', async () => {
+      const codeVerifier = generateCodeVerifier();
+      const codeChallenge = generateCodeChallenge(codeVerifier);
+
+      await userAuthenticator.saveConsent(
+        tenantId,
+        'test-user-001',
+        confidentialClientId,
+        ['openid', 'profile']
+      );
+
+      const authUrl = new URL(`http://localhost/${tenantSlug}/authorize`);
+      authUrl.searchParams.set('response_type', 'code');
+      authUrl.searchParams.set('client_id', confidentialClientId);
+      authUrl.searchParams.set('redirect_uri', 'http://localhost:3001/callback');
+      authUrl.searchParams.set('scope', 'openid profile');
+      authUrl.searchParams.set('code_challenge', codeChallenge);
+      authUrl.searchParams.set('code_challenge_method', 'S256');
+      authUrl.searchParams.set('response_mode', 'fragment');
+
+      const res = await app.request(authUrl.pathname + authUrl.search);
+
+      expect(res.status).toBe(302);
+      const location = res.headers.get('Location')!;
+      // Fragment mode puts params in hash
+      expect(location).toContain('#code=');
+    });
+
+    it('should reject invalid response_mode', async () => {
+      const codeVerifier = generateCodeVerifier();
+      const codeChallenge = generateCodeChallenge(codeVerifier);
+
+      const authUrl = new URL(`http://localhost/${tenantSlug}/authorize`);
+      authUrl.searchParams.set('response_type', 'code');
+      authUrl.searchParams.set('client_id', confidentialClientId);
+      authUrl.searchParams.set('redirect_uri', 'http://localhost:3001/callback');
+      authUrl.searchParams.set('scope', 'openid');
+      authUrl.searchParams.set('code_challenge', codeChallenge);
+      authUrl.searchParams.set('code_challenge_method', 'S256');
+      authUrl.searchParams.set('response_mode', 'invalid');
+
+      const res = await app.request(authUrl.pathname + authUrl.search);
+
+      expect(res.status).toBe(400);
+    });
+  });
+
+  // ==========================================================================
+  // OpenID Configuration (Extended)
+  // ==========================================================================
+  describe('OpenID Configuration (Extended)', () => {
+    it('should include new OIDC endpoints in discovery', async () => {
+      const res = await app.request(`/${tenantSlug}/.well-known/openid-configuration`);
+      expect(res.status).toBe(200);
+
+      const config = await res.json() as any;
+
+      // Check new endpoints
+      expect(config.userinfo_endpoint).toBe('http://localhost:3000/test/userinfo');
+      expect(config.end_session_endpoint).toBe('http://localhost:3000/test/end_session');
+      expect(config.registration_endpoint).toBe('http://localhost:3000/test/register');
+
+      // Check response modes
+      expect(config.response_modes_supported).toContain('query');
+      expect(config.response_modes_supported).toContain('fragment');
+      expect(config.response_modes_supported).toContain('form_post');
+
+      // Check logout support
+      expect(config.backchannel_logout_supported).toBe(true);
+      expect(config.backchannel_logout_session_supported).toBe(true);
+      expect(config.frontchannel_logout_supported).toBe(true);
+      expect(config.frontchannel_logout_session_supported).toBe(true);
+
+      // Check claims parameter support
+      expect(config.claims_parameter_supported).toBe(true);
+
+      // Check extended claims
+      expect(config.claims_supported).toContain('given_name');
+      expect(config.claims_supported).toContain('family_name');
+      expect(config.claims_supported).toContain('address');
+      expect(config.claims_supported).toContain('phone_number');
+      expect(config.claims_supported).toContain('acr');
+      expect(config.claims_supported).toContain('amr');
     });
   });
 });

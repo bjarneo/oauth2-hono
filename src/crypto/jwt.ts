@@ -1,5 +1,5 @@
 import * as jose from 'jose';
-import type { AccessTokenPayload, IdTokenPayload } from '../types/token.js';
+import type { AccessTokenPayload, IdTokenPayload, LogoutTokenPayload } from '../types/token.js';
 import type { SigningKey } from '../types/tenant.js';
 import { generateJti } from './random.js';
 
@@ -211,4 +211,59 @@ export async function verifyClientAssertion(
   });
 
   return payload;
+}
+
+/**
+ * Verify an access token using a signing key
+ */
+export async function verifyAccessToken(
+  token: string,
+  signingKey: SigningKey,
+  options: {
+    issuer?: string;
+    audience?: string | string[];
+    clockTolerance?: number;
+  } = {}
+): Promise<AccessTokenPayload> {
+  const publicKey = await importPublicKey(signingKey.publicKey, signingKey.algorithm);
+
+  const verifyOptions: jose.JWTVerifyOptions = {
+    clockTolerance: options.clockTolerance ?? 5,
+  };
+
+  if (options.issuer) {
+    verifyOptions.issuer = options.issuer;
+  }
+
+  if (options.audience) {
+    verifyOptions.audience = options.audience;
+  }
+
+  const { payload } = await jose.jwtVerify(token, publicKey, verifyOptions);
+
+  return payload as unknown as AccessTokenPayload;
+}
+
+/**
+ * Sign a logout token for back-channel logout
+ * OpenID Connect Back-Channel Logout 1.0
+ */
+export async function signLogoutToken(
+  payload: Omit<LogoutTokenPayload, 'jti'>,
+  signingKey: SigningKey
+): Promise<string> {
+  const privateKey = await importPrivateKey(signingKey.privateKey, signingKey.algorithm);
+
+  const jwt = await new jose.SignJWT({
+    ...payload,
+    jti: generateJti(),
+  } as unknown as jose.JWTPayload)
+    .setProtectedHeader({
+      alg: signingKey.algorithm,
+      kid: signingKey.kid,
+      typ: 'logout+jwt',
+    })
+    .sign(privateKey);
+
+  return jwt;
 }

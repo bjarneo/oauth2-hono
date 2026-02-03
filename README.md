@@ -138,6 +138,37 @@ http://localhost:3000/dev/end_session?
   state=STATE
 ```
 
+### Example: Dynamic Client Registration
+
+```bash
+curl -X POST http://localhost:3000/dev/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "client_name": "My App",
+    "redirect_uris": ["http://localhost:3001/callback"],
+    "grant_types": ["authorization_code", "refresh_token"],
+    "response_types": ["code"],
+    "token_endpoint_auth_method": "client_secret_basic"
+  }'
+```
+
+### Response Modes
+
+The authorization endpoint supports three response modes:
+
+| Mode | Description |
+|------|-------------|
+| query | Parameters in URL query string (default) |
+| fragment | Parameters in URL fragment |
+| form_post | Parameters POSTed via HTML form (most secure) |
+
+```
+http://localhost:3000/dev/authorize?
+  response_type=code&
+  response_mode=form_post&
+  ...
+```
+
 ## Configuration
 
 Environment variables:
@@ -189,6 +220,7 @@ See the `docs/` directory for detailed documentation:
 
 * [Architecture](docs/architecture.md)
 * [Grant Types](docs/grant-types.md)
+* [OpenID Connect](docs/oidc.md)
 * [Multi Tenancy](docs/multi-tenancy.md)
 * [Security](docs/security.md)
 * [Storage](docs/storage.md)

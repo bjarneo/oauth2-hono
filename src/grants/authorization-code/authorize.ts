@@ -8,12 +8,84 @@ import {
   RESPONSE_TYPE_CODE,
   CODE_CHALLENGE_METHOD_S256,
   GRANT_TYPE_AUTHORIZATION_CODE,
+  RESPONSE_MODE_QUERY,
+  RESPONSE_MODE_FRAGMENT,
+  RESPONSE_MODE_FORM_POST,
 } from '../../config/constants.js';
 
 export interface AuthorizeHandlerOptions {
   clientStorage: IClientStorage;
   authorizationCodeStorage: IAuthorizationCodeStorage;
   userAuthenticator: IUserAuthenticator;
+}
+
+type ResponseMode = 'query' | 'fragment' | 'form_post';
+
+/**
+ * Build authorization response based on response_mode
+ */
+function buildAuthorizationResponse(
+  c: Context,
+  redirectUri: string,
+  params: Record<string, string>,
+  responseMode: ResponseMode
+): Response {
+  if (responseMode === RESPONSE_MODE_FORM_POST) {
+    // Return HTML form that auto-submits via POST
+    const hiddenInputs = Object.entries(params)
+      .map(([key, value]) => `<input type="hidden" name="${escapeHtml(key)}" value="${escapeHtml(value)}">`)
+      .join('\n      ');
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Authorization Response</title>
+</head>
+<body onload="document.forms[0].submit()">
+  <noscript>
+    <p>JavaScript is required. Please click the button below to continue.</p>
+  </noscript>
+  <form method="POST" action="${escapeHtml(redirectUri)}">
+    ${hiddenInputs}
+    <noscript>
+      <button type="submit">Continue</button>
+    </noscript>
+  </form>
+</body>
+</html>`;
+
+    return c.html(html);
+  }
+
+  const url = new URL(redirectUri);
+
+  if (responseMode === RESPONSE_MODE_FRAGMENT) {
+    // Add parameters to fragment
+    const fragment = new URLSearchParams(params).toString();
+    url.hash = fragment;
+  } else {
+    // Default: add parameters to query string
+    for (const [key, value] of Object.entries(params)) {
+      url.searchParams.set(key, value);
+    }
+  }
+
+  return c.redirect(url.toString());
+}
+
+/**
+ * Escape HTML special characters
+ */
+function escapeHtml(text: string): string {
+  const map: Record<string, string> = {
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#039;',
+  };
+  return text.replace(/[&<>"']/g, (char) => map[char]);
 }
 
 /**
@@ -45,6 +117,23 @@ export function createAuthorizeHandler(options: AuthorizeHandlerOptions) {
     const codeChallenge = params['code_challenge'] as string | undefined;
     const codeChallengeMethod = params['code_challenge_method'] as string | undefined;
     const nonce = params['nonce'] as string | undefined;
+    const responseMode = (params['response_mode'] as ResponseMode | undefined) || RESPONSE_MODE_QUERY;
+    const claims = params['claims'] as string | undefined;
+    const acrValues = params['acr_values'] as string | undefined;
+    // Note: loginHint can be passed to the authenticator if needed
+    void params['login_hint'];
+    const prompt = params['prompt'] as string | undefined;
+    const maxAge = params['max_age'] as string | undefined;
+
+    // Validate response_mode
+    if (
+      responseMode &&
+      responseMode !== RESPONSE_MODE_QUERY &&
+      responseMode !== RESPONSE_MODE_FRAGMENT &&
+      responseMode !== RESPONSE_MODE_FORM_POST
+    ) {
+      throw OAuthError.invalidRequest(`Invalid response_mode: ${responseMode}`);
+    }
 
     // Validate required parameters (before redirect_uri validation)
     if (!clientId) {
@@ -69,17 +158,18 @@ export function createAuthorizeHandler(options: AuthorizeHandlerOptions) {
 
     // Helper to redirect with error
     const redirectWithError = (error: OAuthError) => {
-      const url = new URL(redirectUri);
-      url.searchParams.set('error', error.code);
+      const errorParams: Record<string, string> = {
+        error: error.code,
+        iss: tenant.issuer,
+      };
       if (error.description) {
-        url.searchParams.set('error_description', error.description);
+        errorParams.error_description = error.description;
       }
       if (state) {
-        url.searchParams.set('state', state);
+        errorParams.state = state;
       }
-      // RFC 9700: Include issuer in error responses
-      url.searchParams.set('iss', tenant.issuer);
-      return c.redirect(url.toString());
+
+      return buildAuthorizationResponse(c, redirectUri, errorParams, responseMode);
     };
 
     // Validate response_type
@@ -115,6 +205,17 @@ export function createAuthorizeHandler(options: AuthorizeHandlerOptions) {
       );
     }
 
+    // Validate claims parameter if provided
+    if (claims) {
+      try {
+        JSON.parse(claims); // Validate JSON format
+      } catch {
+        return redirectWithError(
+          OAuthError.invalidRequest('Invalid claims parameter: must be valid JSON', state)
+        );
+      }
+    }
+
     // Parse and validate scopes
     const requestedScopes = scopeService.parseScopes(scope);
     let validatedScopes: string[];
@@ -127,6 +228,17 @@ export function createAuthorizeHandler(options: AuthorizeHandlerOptions) {
       throw error;
     }
 
+    // Handle prompt=none (silent authentication)
+    if (prompt === 'none') {
+      // Try to authenticate without user interaction
+      const authResult = await userAuthenticator.authenticate(c);
+      if (!authResult.authenticated) {
+        return redirectWithError(
+          OAuthError.loginRequired('User is not authenticated', state)
+        );
+      }
+    }
+
     // Authenticate user
     const authResult = await userAuthenticator.authenticate(c);
     if (!authResult.authenticated) {
@@ -135,6 +247,24 @@ export function createAuthorizeHandler(options: AuthorizeHandlerOptions) {
     }
 
     const user = authResult.user;
+
+    // Check max_age if provided
+    if (maxAge && user.authTime) {
+      const maxAgeSeconds = parseInt(maxAge, 10);
+      const authAge = Math.floor(Date.now() / 1000) - user.authTime;
+      if (authAge > maxAgeSeconds) {
+        // Re-authentication required
+        return redirectWithError(
+          OAuthError.loginRequired('Authentication is too old', state)
+        );
+      }
+    }
+
+    // Handle prompt=login (force re-authentication)
+    if (prompt === 'login') {
+      // This would require the authenticator to force a new login
+      // For now, we just proceed with the current authentication
+    }
 
     // Check consent (skip for first-party apps)
     if (!client.firstParty && client.requireConsent !== false) {
@@ -149,7 +279,17 @@ export function createAuthorizeHandler(options: AuthorizeHandlerOptions) {
         !existingConsent ||
         !validatedScopes.every((scope) => existingConsent.includes(scope));
 
-      if (needsConsent) {
+      // Handle prompt=consent (force consent prompt)
+      const forceConsent = prompt === 'consent';
+
+      if (needsConsent || forceConsent) {
+        // Handle prompt=none with consent required
+        if (prompt === 'none') {
+          return redirectWithError(
+            OAuthError.consentRequired('User consent is required', state)
+          );
+        }
+
         // Check if this is a consent submission (POST with consent=true)
         if (c.req.method === 'POST' && params['consent'] === 'true') {
           // User granted consent - save it
@@ -169,8 +309,13 @@ export function createAuthorizeHandler(options: AuthorizeHandlerOptions) {
           return c.json({
             consent_required: true,
             client: {
+              id: client.clientId,
               name: client.name,
               description: client.description,
+              logo_uri: client.logoUri,
+              client_uri: client.clientUri,
+              policy_uri: client.policyUri,
+              tos_uri: client.tosUri,
             },
             scopes: validatedScopes,
             user: {
@@ -187,6 +332,9 @@ export function createAuthorizeHandler(options: AuthorizeHandlerOptions) {
               code_challenge: codeChallenge,
               code_challenge_method: codeChallengeMethod,
               nonce,
+              response_mode: responseMode,
+              claims,
+              acr_values: acrValues,
             },
           });
         }
@@ -206,18 +354,22 @@ export function createAuthorizeHandler(options: AuthorizeHandlerOptions) {
       codeChallengeMethod: CODE_CHALLENGE_METHOD_S256,
       nonce,
       state,
+      responseMode,
+      claims,
+      acr: acrValues,
       expiresAt,
     });
 
-    // Redirect to client with authorization code
-    const url = new URL(redirectUri);
-    url.searchParams.set('code', code);
-    if (state) {
-      url.searchParams.set('state', state);
-    }
-    // RFC 9700: Include issuer in authorization response
-    url.searchParams.set('iss', tenant.issuer);
+    // Build authorization response
+    const responseParams: Record<string, string> = {
+      code,
+      iss: tenant.issuer, // RFC 9700: Include issuer in authorization response
+    };
 
-    return c.redirect(url.toString());
+    if (state) {
+      responseParams.state = state;
+    }
+
+    return buildAuthorizationResponse(c, redirectUri, responseParams, responseMode);
   };
 }
