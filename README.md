@@ -164,6 +164,8 @@ See the `docs/` directory for detailed documentation:
 | `npm run dev` | Start development server with hot reload |
 | `npm run build` | Compile TypeScript |
 | `npm run start` | Run compiled server |
+| `npm run test` | Run tests in watch mode |
+| `npm run test:run` | Run tests once |
 | `npm run db:push` | Push Prisma schema to database |
 | `npm run db:seed` | Seed database with sample data |
 | `npm run db:studio` | Open Prisma Studio |
