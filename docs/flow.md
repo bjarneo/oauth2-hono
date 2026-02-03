@@ -21,7 +21,7 @@ All requests are routed through tenant-specific paths. The tenant resolver middl
 ```mermaid
 flowchart TD
     A[Incoming Request] --> B{Extract Tenant Slug<br/>from URL path}
-    B --> C[/:tenant/authorize<br/>/:tenant/token<br/>/:tenant/.well-known/*]
+    B --> C["/:tenant/authorize<br/>/:tenant/token<br/>/:tenant/.well-known/*"]
     C --> D{Tenant Exists?}
     D -->|No| E[400 Invalid Request]
     D -->|Yes| F{Tenant Enabled?}
@@ -323,13 +323,13 @@ flowchart TB
         end
 
         subgraph Endpoints
-            Authorize[/authorize]
-            Token[/token]
-            Introspect[/introspect]
-            Revoke[/revoke]
-            DeviceAuth[/device/authorize]
-            JWKS[/.well-known/jwks.json]
-            Discovery[/.well-known/openid-configuration]
+            Authorize["/authorize"]
+            Token["/token"]
+            Introspect["/introspect"]
+            Revoke["/revoke"]
+            DeviceAuth["/device/authorize"]
+            JWKS["/.well-known/jwks.json"]
+            Discovery["/.well-known/openid-configuration"]
         end
 
         subgraph Grants
@@ -423,7 +423,7 @@ flowchart LR
     end
 
     subgraph Payload
-        B[iss: issuer URL<br/>sub: user/client ID<br/>aud: audience<br/>exp: expiration<br/>iat: issued at<br/>jti: unique ID<br/>client_id: xxx<br/>scope: openid profile<br/>tenant_id: xxx]
+        B["iss: issuer URL<br/>sub: user or client ID<br/>aud: audience<br/>exp: expiration<br/>iat: issued at<br/>jti: unique ID<br/>client_id: xxx<br/>scope: openid profile<br/>tenant_id: xxx"]
     end
 
     subgraph Signature
