@@ -1,13 +1,18 @@
 # OAuth 2.0 Authorization Server
 
-A production grade, multi tenant OAuth 2.0 Authorization Server built with Hono and TypeScript.
+A production grade, multi tenant OAuth 2.0 and OpenID Connect Authorization Server built with Hono and TypeScript.
 
 ## Features
 
 * RFC 6749 (OAuth 2.0 Framework)
 * RFC 6750 (Bearer Tokens)
+* RFC 7591 (Dynamic Client Registration)
 * RFC 8628 (Device Authorization Grant)
 * RFC 9700 (Security Best Current Practice)
+* OpenID Connect Core 1.0
+* OpenID Connect Discovery 1.0
+* OpenID Connect RP Initiated Logout 1.0
+* OpenID Connect Back Channel Logout 1.0
 * Multi tenant architecture with complete data isolation
 * Pluggable user authentication
 * Prisma ORM with PostgreSQL
@@ -73,9 +78,12 @@ All endpoints are scoped by tenant using the URL path.
 | JWKS | `/<tenant>/.well-known/jwks.json` |
 | Authorization | `/<tenant>/authorize` |
 | Token | `/<tenant>/token` |
+| UserInfo | `/<tenant>/userinfo` |
 | Revocation | `/<tenant>/revoke` |
 | Introspection | `/<tenant>/introspect` |
+| End Session | `/<tenant>/end_session` |
 | Device Authorization | `/<tenant>/device_authorization` |
+| Client Registration | `/<tenant>/register` |
 
 ### Example: Client Credentials Flow
 
@@ -96,10 +104,11 @@ http://localhost:3000/dev/authorize?
   response_type=code&
   client_id=CLIENT_ID&
   redirect_uri=http://localhost:3001/callback&
-  scope=openid profile&
+  scope=openid profile email&
   code_challenge=CODE_CHALLENGE&
   code_challenge_method=S256&
-  state=STATE
+  state=STATE&
+  nonce=NONCE
 ```
 
 2. Exchange code for tokens
@@ -111,6 +120,22 @@ curl -X POST http://localhost:3000/dev/token \
   -d "redirect_uri=http://localhost:3001/callback" \
   -d "code_verifier=CODE_VERIFIER" \
   -d "client_id=CLIENT_ID"
+```
+
+### Example: Get User Info
+
+```bash
+curl http://localhost:3000/dev/userinfo \
+  -H "Authorization: Bearer ACCESS_TOKEN"
+```
+
+### Example: Logout
+
+```
+http://localhost:3000/dev/end_session?
+  id_token_hint=ID_TOKEN&
+  post_logout_redirect_uri=http://localhost:3001&
+  state=STATE
 ```
 
 ## Configuration
@@ -125,6 +150,18 @@ Environment variables:
 | NODE_ENV | development | Environment mode |
 
 See `.env.example` for all options.
+
+## OIDC Claims
+
+The server supports standard OpenID Connect claims organized by scope:
+
+| Scope | Claims |
+|-------|--------|
+| openid | sub |
+| profile | name, given_name, family_name, middle_name, nickname, preferred_username, profile, picture, website, gender, birthdate, zoneinfo, locale, updated_at |
+| email | email, email_verified |
+| address | address |
+| phone | phone_number, phone_number_verified |
 
 ## Project Structure
 
@@ -171,6 +208,3 @@ See the `docs/` directory for detailed documentation:
 | `npm run db:studio` | Open Prisma Studio |
 | `npm run typecheck` | Type check without emitting |
 
-## License
-
-MIT
