@@ -450,7 +450,7 @@ flowchart TD
     B -->|access_denied| I[403 Forbidden<br/>User denied consent]
     B -->|server_error| J[500 Internal Error<br/>Unexpected error]
 
-    C --> K[JSON Response:<br/>error: "error_code"<br/>error_description: "details"]
+    C --> K[JSON Response:<br/>error: error_code<br/>error_description: message]
     D --> K
     E --> K
     F --> K
