@@ -18,7 +18,8 @@ RUN npx prisma generate
 RUN npm run build -w @oauth2-hono/shared
 RUN npm run build -w @oauth2-hono/server
 
-FROM node:20-alpine
+# Production image
+FROM node:20-alpine AS production
 
 WORKDIR /app
 
@@ -38,3 +39,8 @@ ENV PORT=3000
 EXPOSE 3000
 
 CMD ["node", "packages/server/dist/index.js"]
+
+# Seed image (includes dev dependencies for tsx)
+FROM builder AS seed
+
+CMD ["npx", "tsx", "prisma/seed.ts"]

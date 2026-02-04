@@ -1,7 +1,11 @@
 import { PrismaClient } from '@prisma/client';
-import { generateRsaKeyPair } from '../src/crypto/jwt.js';
-import { generateClientId, generateClientSecret, generateKid } from '../src/crypto/random.js';
-import { hashClientSecret } from '../src/crypto/hash.js';
+import {
+  generateRsaKeyPair,
+  generateClientId,
+  generateClientSecret,
+  generateKid,
+  hashClientSecret,
+} from '@oauth2-hono/server';
 
 const prisma = new PrismaClient();
 

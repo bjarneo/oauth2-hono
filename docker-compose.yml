@@ -20,6 +20,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: production
     restart: unless-stopped
     depends_on:
       db:
@@ -47,6 +48,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: production
     depends_on:
       db:
         condition: service_healthy
@@ -60,12 +62,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      target: seed
     depends_on:
       db:
         condition: service_healthy
     environment:
       DATABASE_URL: postgresql://oauth2:oauth2_dev_password@db:5432/oauth2?schema=public
-    command: ["npx", "tsx", "prisma/seed.ts"]
     profiles:
       - tools
 
