@@ -1,0 +1,73 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: oauth2
+      POSTGRES_PASSWORD: oauth2_dev_password
+      POSTGRES_DB: oauth2
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oauth2 -d oauth2"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      DATABASE_URL: postgresql://oauth2:oauth2_dev_password@db:5432/oauth2?schema=public
+      ADMIN_API_KEY: dev_admin_api_key_12345
+      ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+    ports:
+      - "3000:3000"
+
+  admin:
+    build:
+      context: .
+      dockerfile: Dockerfile.admin
+    restart: unless-stopped
+    depends_on:
+      - server
+    ports:
+      - "5173:80"
+
+  migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://oauth2:oauth2_dev_password@db:5432/oauth2?schema=public
+    command: ["npx", "prisma", "migrate", "deploy"]
+    profiles:
+      - tools
+
+  seed:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://oauth2:oauth2_dev_password@db:5432/oauth2?schema=public
+    command: ["npx", "tsx", "prisma/seed.ts"]
+    profiles:
+      - tools
+
+volumes:
+  postgres_data:

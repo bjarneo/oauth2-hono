@@ -1,4 +1,26 @@
+import { readFileSync, existsSync } from 'node:fs';
 import * as constants from './constants.js';
+
+/**
+ * Read a secret from file (Docker secrets) or environment variable
+ * Supports both `VAR_FILE` (path to file) and `VAR` (direct value) patterns
+ */
+function readSecret(envVar: string): string | undefined {
+  // Check for file-based secret first (Docker secrets pattern)
+  const fileEnvVar = `${envVar}_FILE`;
+  const filePath = process.env[fileEnvVar];
+
+  if (filePath && existsSync(filePath)) {
+    try {
+      return readFileSync(filePath, 'utf-8').trim();
+    } catch {
+      console.warn(`Warning: Could not read secret from ${filePath}`);
+    }
+  }
+
+  // Fall back to direct environment variable
+  return process.env[envVar];
+}
 
 /**
  * Application configuration loaded from environment
@@ -11,6 +33,11 @@ export interface Config {
   };
   database: {
     url: string | undefined;
+  };
+  secrets: {
+    adminApiKey: string | undefined;
+    encryptionKey: string | undefined;
+    jwtSigningKey: string | undefined;
   };
   logging: {
     level: string;
@@ -40,6 +67,11 @@ export function loadConfig(): Config {
     },
     database: {
       url: process.env['DATABASE_URL'],
+    },
+    secrets: {
+      adminApiKey: readSecret('ADMIN_API_KEY'),
+      encryptionKey: readSecret('ENCRYPTION_KEY'),
+      jwtSigningKey: readSecret('JWT_SIGNING_KEY'),
     },
     logging: {
       level: process.env['LOG_LEVEL'] ?? 'info',

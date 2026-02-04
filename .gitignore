@@ -30,3 +30,10 @@ coverage/
 # Cache
 .cache/
 .turbo/
+
+# Docker secrets (NEVER commit these)
+secrets/
+*.secret
+
+# Docker data
+postgres_data/
