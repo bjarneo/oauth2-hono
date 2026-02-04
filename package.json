@@ -1,16 +1,22 @@
 {
-  "name": "oauth2-hono",
+  "name": "oauth2-hono-monorepo",
   "version": "1.0.0",
+  "private": true,
   "description": "Production-grade multi-tenant OAuth 2.0 Authorization Server",
   "type": "module",
-  "main": "dist/index.js",
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "tsx watch src/index.ts",
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "test": "vitest",
-    "test:run": "vitest run",
-    "typecheck": "tsc --noEmit",
+    "dev": "npm run dev:server",
+    "dev:server": "npm run dev -w @oauth2-hono/server",
+    "dev:admin": "npm run dev -w @oauth2-hono/admin",
+    "build": "npm run build -w @oauth2-hono/shared && npm run build -w @oauth2-hono/server && npm run build -w @oauth2-hono/admin",
+    "build:server": "npm run build -w @oauth2-hono/server",
+    "build:admin": "npm run build -w @oauth2-hono/admin",
+    "test": "npm run test -w @oauth2-hono/server",
+    "test:run": "npm run test:run -w @oauth2-hono/server",
+    "typecheck": "npm run typecheck --workspaces --if-present",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
@@ -18,20 +24,11 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio"
   },
-  "dependencies": {
-    "@hono/node-server": "^1.13.7",
-    "@hono/zod-validator": "^0.4.2",
-    "@prisma/client": "^6.2.1",
-    "hono": "^4.6.14",
-    "jose": "^5.9.6",
-    "zod": "^3.24.1"
-  },
   "devDependencies": {
     "@types/node": "^22.10.2",
     "prisma": "^6.2.1",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.2",
-    "vitest": "^2.1.8"
+    "typescript": "^5.7.2"
   },
   "engines": {
     "node": ">=20.0.0"

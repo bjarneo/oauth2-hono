@@ -1,8 +1,10 @@
 # OAuth 2.0 Authorization Server
 
-A production grade, multi tenant OAuth 2.0 and OpenID Connect Authorization Server built with Hono and TypeScript.
+A production grade, multi tenant OAuth 2.0 and OpenID Connect authorization server built with Hono and TypeScript. Includes a React admin panel for managing tenants, clients, and identity providers.
 
 ## Features
+
+### Standards Compliance
 
 * RFC 6749 (OAuth 2.0 Framework)
 * RFC 6750 (Bearer Tokens)
@@ -13,16 +15,36 @@ A production grade, multi tenant OAuth 2.0 and OpenID Connect Authorization Serv
 * OpenID Connect Discovery 1.0
 * OpenID Connect RP Initiated Logout 1.0
 * OpenID Connect Back Channel Logout 1.0
-* Multi tenant architecture with complete data isolation
-* Pluggable user authentication
-* Prisma ORM with PostgreSQL
 
-## Supported Grant Types
+### Core Capabilities
+
+* Multi tenant architecture with complete data isolation
+* Pluggable storage backends (in memory or PostgreSQL via Prisma)
+* Pluggable user authentication
+* Identity provider federation (Google, GitHub, Microsoft, Apple, and more)
+* Admin API with API key authentication
+* React admin panel for configuration management
+
+### Supported Grant Types
 
 * Authorization Code with PKCE (required for all clients)
 * Client Credentials
 * Device Code
 * Refresh Token with rotation
+
+## Project Structure
+
+This is a monorepo managed with npm workspaces containing three packages:
+
+```
+oauth2-hono/
+├── packages/
+│   ├── server/          OAuth 2.0 authorization server
+│   ├── admin/           React admin panel
+│   └── shared/          Shared TypeScript types
+├── prisma/              Database schema
+└── docs/                Documentation
+```
 
 ## Quick Start
 
@@ -39,11 +61,19 @@ npm install
 
 ### Development (In Memory Storage)
 
+Start the OAuth server with in memory storage:
+
 ```bash
-npm run dev
+npm run dev --workspace=@oauth2-hono/server
 ```
 
-The server starts with in memory storage. All data is lost on restart.
+Start the admin panel:
+
+```bash
+npm run dev --workspace=@oauth2-hono/admin
+```
+
+The server runs on port 3000 and the admin panel on port 5173.
 
 ### Development (PostgreSQL)
 
@@ -65,12 +95,12 @@ npm run db:seed
 4. Start the server
 
 ```bash
-npm run dev
+npm run dev --workspace=@oauth2-hono/server
 ```
 
-### Endpoints
+## OAuth Endpoints
 
-All endpoints are scoped by tenant using the URL path.
+All OAuth endpoints are scoped by tenant using the URL path.
 
 | Endpoint | Path |
 |----------|------|
@@ -84,18 +114,116 @@ All endpoints are scoped by tenant using the URL path.
 | End Session | `/<tenant>/end_session` |
 | Device Authorization | `/<tenant>/device_authorization` |
 | Client Registration | `/<tenant>/register` |
+| Federation Initiate | `/<tenant>/federate/<idp_slug>` |
+| Federation Callback | `/<tenant>/federate/<idp_slug>/callback` |
 
-### Example: Client Credentials Flow
+## Admin API
+
+The admin API is mounted at `/_admin/` and requires API key authentication.
+
+### Tenants
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/_admin/tenants` | List all tenants |
+| POST | `/_admin/tenants` | Create a tenant |
+| GET | `/_admin/tenants/:id` | Get tenant details |
+| PUT | `/_admin/tenants/:id` | Update a tenant |
+| DELETE | `/_admin/tenants/:id` | Delete a tenant |
+| GET | `/_admin/tenants/:id/stats` | Get tenant statistics |
+
+### Clients
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/_admin/tenants/:tenantId/clients` | List clients |
+| POST | `/_admin/tenants/:tenantId/clients` | Create a client |
+| GET | `/_admin/clients/:id` | Get client details |
+| PUT | `/_admin/clients/:id` | Update a client |
+| DELETE | `/_admin/clients/:id` | Delete a client |
+| POST | `/_admin/clients/:id/regenerate-secret` | Regenerate client secret |
+
+### Signing Keys
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/_admin/tenants/:tenantId/signing-keys` | List signing keys |
+| POST | `/_admin/tenants/:tenantId/signing-keys` | Create a signing key |
+| POST | `/_admin/tenants/:tenantId/signing-keys/rotate` | Rotate keys |
+| PUT | `/_admin/signing-keys/:id/set-primary` | Set key as primary |
+| DELETE | `/_admin/signing-keys/:id` | Delete a signing key |
+
+### Tokens
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/_admin/tenants/:tenantId/refresh-tokens` | List refresh tokens |
+| POST | `/_admin/refresh-tokens/:id/revoke` | Revoke a token |
+| POST | `/_admin/tenants/:tenantId/refresh-tokens/revoke-by-user/:userId` | Revoke all tokens for a user |
+
+### Identity Providers
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/_admin/tenants/:tenantId/identity-providers` | List identity providers |
+| POST | `/_admin/tenants/:tenantId/identity-providers` | Create an identity provider |
+| GET | `/_admin/identity-providers/:id` | Get identity provider details |
+| PUT | `/_admin/identity-providers/:id` | Update an identity provider |
+| DELETE | `/_admin/identity-providers/:id` | Delete an identity provider |
+
+## Identity Provider Federation
+
+The server supports federated authentication with external identity providers. Users can sign in with their existing accounts from supported providers.
+
+### Supported Providers
+
+* Google
+* GitHub
+* Microsoft
+* Apple
+* Facebook
+* Twitter
+* LinkedIn
+* Generic OIDC
+* Generic OAuth 2.0
+
+### Federation Flow
+
+1. Configure an identity provider in the admin panel or via the admin API
+2. Redirect users to `/<tenant>/federate/<idp_slug>` to initiate authentication
+3. The server redirects to the external provider
+4. After authentication, the provider redirects back to `/<tenant>/federate/<idp_slug>/callback`
+5. The server exchanges the code for tokens and retrieves user information
+6. A federated identity is created linking the external account to a local user
+
+### Example: Configure Google as an Identity Provider
 
 ```bash
-# Get access token
+curl -X POST http://localhost:3000/_admin/tenants/TENANT_ID/identity-providers \
+  -H "X-Admin-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Google",
+    "slug": "google",
+    "template": "google",
+    "clientId": "YOUR_GOOGLE_CLIENT_ID",
+    "clientSecret": "YOUR_GOOGLE_CLIENT_SECRET",
+    "scopes": ["openid", "profile", "email"]
+  }'
+```
+
+## Usage Examples
+
+### Client Credentials Flow
+
+```bash
 curl -X POST http://localhost:3000/dev/token \
   -u "CLIENT_ID:CLIENT_SECRET" \
   -d "grant_type=client_credentials" \
   -d "scope=api:read"
 ```
 
-### Example: Authorization Code Flow
+### Authorization Code Flow
 
 1. Redirect user to authorization endpoint
 
@@ -122,14 +250,14 @@ curl -X POST http://localhost:3000/dev/token \
   -d "client_id=CLIENT_ID"
 ```
 
-### Example: Get User Info
+### Get User Info
 
 ```bash
 curl http://localhost:3000/dev/userinfo \
   -H "Authorization: Bearer ACCESS_TOKEN"
 ```
 
-### Example: Logout
+### Logout
 
 ```
 http://localhost:3000/dev/end_session?
@@ -138,7 +266,7 @@ http://localhost:3000/dev/end_session?
   state=STATE
 ```
 
-### Example: Dynamic Client Registration
+### Dynamic Client Registration
 
 ```bash
 curl -X POST http://localhost:3000/dev/register \
@@ -152,7 +280,7 @@ curl -X POST http://localhost:3000/dev/register \
   }'
 ```
 
-### Response Modes
+## Response Modes
 
 The authorization endpoint supports three response modes:
 
@@ -171,7 +299,7 @@ http://localhost:3000/dev/authorize?
 
 ## Configuration
 
-Environment variables:
+### Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -179,8 +307,37 @@ Environment variables:
 | HOST | 0.0.0.0 | Server host |
 | DATABASE_URL | | PostgreSQL connection string |
 | NODE_ENV | development | Environment mode |
+| ADMIN_API_KEY | | API key for admin endpoints |
+| ENCRYPTION_KEY | | Key for encrypting IdP client secrets |
 
 See `.env.example` for all options.
+
+### Server Options
+
+The `createOAuth2Server` function accepts the following options:
+
+```typescript
+interface OAuth2ServerOptions {
+  storage: IStorage;
+  userAuthenticator?: IUserAuthenticator;
+  baseUrl?: string;
+  verificationUri?: string;
+  rateLimit?: { windowMs: number; maxRequests: number };
+  enableCors?: boolean;
+  enableLogging?: boolean;
+  allowOpenRegistration?: boolean;
+  registrationAccessToken?: string;
+  onLogout?: (tenantId: string, userId: string, clientId?: string) => Promise<void>;
+  admin?: {
+    enabled?: boolean;
+    auth?: AdminAuthOptions;
+  };
+  federation?: {
+    enabled?: boolean;
+    onFederatedLogin?: (params: FederatedLoginParams) => Promise<FederatedLoginResult>;
+  };
+}
+```
 
 ## OIDC Claims
 
@@ -194,16 +351,18 @@ The server supports standard OpenID Connect claims organized by scope:
 | address | address |
 | phone | phone_number, phone_number_verified |
 
-## Project Structure
+## Package Structure
+
+### Server Package
 
 ```
-src/
+packages/server/src/
   app.ts              Application factory
   index.ts            Entry point
   config/             Configuration and constants
   types/              TypeScript type definitions
   errors/             OAuth error handling
-  crypto/             JWT, PKCE, hashing utilities
+  crypto/             JWT, PKCE, hashing, encryption utilities
   storage/
     interfaces/       Abstract storage contracts
     memory/           In memory implementation
@@ -211,8 +370,41 @@ src/
   middleware/         Hono middleware
   services/           Token and scope services
   grants/             Grant type handlers
-  routes/             HTTP route definitions
+  routes/
+    oauth/            OAuth endpoints
+    discovery/        OIDC discovery endpoints
+    admin/            Admin API endpoints
+    federation/       Identity provider federation
 ```
+
+### Admin Package
+
+```
+packages/admin/src/
+  App.tsx             Application root with routing
+  api/                API client
+  components/         Reusable UI components (shadcn/ui)
+  pages/              Page components
+    Dashboard.tsx
+    tenants/          Tenant management
+    clients/          Client management
+    signing-keys/     Key management
+    tokens/           Token management
+    identity-providers/  IdP configuration
+```
+
+## Scripts
+
+| Command | Description |
+|---------|-------------|
+| `npm run dev --workspace=@oauth2-hono/server` | Start server with hot reload |
+| `npm run dev --workspace=@oauth2-hono/admin` | Start admin panel |
+| `npm run build` | Build all packages |
+| `npm run test:run` | Run tests once |
+| `npm run typecheck` | Type check all packages |
+| `npm run db:push` | Push Prisma schema to database |
+| `npm run db:seed` | Seed database with sample data |
+| `npm run db:studio` | Open Prisma Studio |
 
 ## Documentation
 
@@ -225,18 +417,28 @@ See the `docs/` directory for detailed documentation:
 * [Security](docs/security.md)
 * [Storage](docs/storage.md)
 * [Integration](docs/integration.md)
+* [OAuth Flow](docs/flow.md)
+* [Identity Provider Federation](docs/federation.md)
+* [Admin Panel](docs/admin.md)
 
-## Scripts
+## Tech Stack
 
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Start development server with hot reload |
-| `npm run build` | Compile TypeScript |
-| `npm run start` | Run compiled server |
-| `npm run test` | Run tests in watch mode |
-| `npm run test:run` | Run tests once |
-| `npm run db:push` | Push Prisma schema to database |
-| `npm run db:seed` | Seed database with sample data |
-| `npm run db:studio` | Open Prisma Studio |
-| `npm run typecheck` | Type check without emitting |
+### Server
 
+* Hono (web framework)
+* TypeScript
+* Prisma (database ORM)
+* jose (JWT library)
+
+### Admin Panel
+
+* React 18
+* React Router
+* TanStack Query
+* Tailwind CSS
+* shadcn/ui (Radix based components)
+* Vite
+
+## License
+
+MIT

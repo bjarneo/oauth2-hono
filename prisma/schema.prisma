@@ -31,6 +31,7 @@ model Tenant {
   refreshTokens      RefreshToken[]
   deviceCodes        DeviceCode[]
   revokedTokens      RevokedToken[]
+  identityProviders  IdentityProvider[]
 
   @@map("tenants")
 }
@@ -171,4 +172,52 @@ model RevokedToken {
   @@index([tenantId, tokenId])
   @@index([expiresAt])
   @@map("revoked_tokens")
+}
+
+model IdentityProvider {
+  id                    String   @id @default(cuid())
+  tenantId              String
+  name                  String
+  slug                  String
+  type                  String   @default("oidc")
+  template              String?
+  clientId              String
+  clientSecretEncrypted String
+  issuer                String?
+  authorizationEndpoint String?
+  tokenEndpoint         String?
+  userinfoEndpoint      String?
+  jwksUri               String?
+  scopes                String[]
+  attributeMapping      Json?
+  enabled               Boolean  @default(true)
+  displayOrder          Int?
+  iconUrl               String?
+  buttonText            String?
+  metadata              Json?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, slug])
+  @@index([tenantId])
+  @@index([tenantId, enabled])
+  @@map("identity_providers")
+}
+
+model FederatedIdentity {
+  id               String   @id @default(cuid())
+  tenantId         String
+  userId           String
+  providerId       String
+  providerUserId   String
+  providerUserData Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([tenantId, providerId, providerUserId])
+  @@index([tenantId, userId])
+  @@index([tenantId, providerId, providerUserId])
+  @@map("federated_identities")
 }

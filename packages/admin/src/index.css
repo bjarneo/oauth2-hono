@@ -1,0 +1,169 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* Rose Pine Dawn (light mode) */
+  :root {
+    --background: 33 32% 96%; /* base #faf4ed */
+    --foreground: 248 19% 40%; /* text #575279 */
+    --card: 39 100% 98%; /* surface #fffaf3 */
+    --card-foreground: 248 19% 40%;
+    --popover: 39 100% 98%;
+    --popover-foreground: 248 19% 40%;
+    --primary: 268 21% 57%; /* iris #907aa9 */
+    --primary-foreground: 33 32% 96%;
+    --secondary: 33 24% 93%; /* overlay #f2e9e1 */
+    --secondary-foreground: 248 19% 40%;
+    --muted: 33 24% 93%;
+    --muted-foreground: 251 10% 53%; /* subtle #797593 */
+    --accent: 268 21% 57%; /* iris */
+    --accent-foreground: 33 32% 96%;
+    --destructive: 343 35% 55%; /* love #b4637a */
+    --destructive-foreground: 33 32% 96%;
+    --border: 33 18% 88%;
+    --input: 33 18% 88%;
+    --ring: 268 21% 57%;
+    --radius: 0.375rem;
+
+    /* Rose Pine Dawn accent colors */
+    --rose-pine: 200 52% 34%; /* pine #286983 */
+    --rose-foam: 189 29% 48%; /* foam #56949f */
+    --rose-gold: 37 82% 56%; /* gold #ea9d34 */
+    --rose-rose: 8 52% 67%; /* rose #d7827e */
+    --rose-iris: 268 21% 57%; /* iris #907aa9 */
+    --rose-love: 343 35% 55%; /* love #b4637a */
+  }
+
+  /* Rose Pine (dark mode) */
+  .dark {
+    --background: 249 22% 12%; /* base #191724 */
+    --foreground: 245 50% 91%; /* text #e0def4 */
+    --card: 248 21% 15%; /* surface #1f1d2e */
+    --card-foreground: 245 50% 91%;
+    --popover: 249 18% 18%; /* overlay #26233a */
+    --popover-foreground: 245 50% 91%;
+    --primary: 267 57% 78%; /* iris #c4a7e7 */
+    --primary-foreground: 249 22% 12%;
+    --secondary: 249 18% 18%; /* overlay */
+    --secondary-foreground: 245 50% 91%;
+    --muted: 249 18% 18%;
+    --muted-foreground: 250 12% 48%; /* muted #6e6a86 */
+    --accent: 267 57% 78%;
+    --accent-foreground: 249 22% 12%;
+    --destructive: 343 76% 68%; /* love #eb6f92 */
+    --destructive-foreground: 249 22% 12%;
+    --border: 249 15% 22%;
+    --input: 249 15% 22%;
+    --ring: 267 57% 78%;
+
+    /* Rose Pine dark accent colors */
+    --rose-pine: 197 49% 38%; /* pine #31748f */
+    --rose-foam: 189 43% 73%; /* foam #9ccfd8 */
+    --rose-gold: 35 88% 72%; /* gold #f6c177 */
+    --rose-rose: 2 55% 83%; /* rose #ebbcba */
+    --rose-iris: 267 57% 78%; /* iris #c4a7e7 */
+    --rose-love: 343 76% 68%; /* love #eb6f92 */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  /* Compact text sizes */
+  h1 {
+    @apply text-lg font-semibold tracking-tight;
+  }
+
+  h2 {
+    @apply text-base font-semibold tracking-tight;
+  }
+
+  h3 {
+    @apply text-sm font-medium;
+  }
+}
+
+@layer components {
+  /* Compact form elements */
+  .compact-input {
+    @apply h-8 text-sm px-2;
+  }
+
+  .compact-button {
+    @apply h-8 text-sm px-3;
+  }
+
+  .compact-select {
+    @apply h-8 text-sm;
+  }
+
+  /* Compact table */
+  .compact-table th,
+  .compact-table td {
+    @apply py-1.5 px-2 text-sm;
+  }
+
+  /* Compact card */
+  .compact-card {
+    @apply p-3;
+  }
+}
+
+@layer utilities {
+  /* Rose Pine accent colors */
+  .text-pine {
+    color: hsl(var(--rose-pine));
+  }
+
+  .text-foam {
+    color: hsl(var(--rose-foam));
+  }
+
+  .text-gold {
+    color: hsl(var(--rose-gold));
+  }
+
+  .text-rose {
+    color: hsl(var(--rose-rose));
+  }
+
+  .text-iris {
+    color: hsl(var(--rose-iris));
+  }
+
+  .text-love {
+    color: hsl(var(--rose-love));
+  }
+
+  .bg-pine {
+    background-color: hsl(var(--rose-pine));
+  }
+
+  .bg-foam {
+    background-color: hsl(var(--rose-foam));
+  }
+
+  .bg-gold {
+    background-color: hsl(var(--rose-gold));
+  }
+
+  .bg-rose {
+    background-color: hsl(var(--rose-rose));
+  }
+
+  .bg-iris {
+    background-color: hsl(var(--rose-iris));
+  }
+
+  .bg-love {
+    background-color: hsl(var(--rose-love));
+  }
+}
