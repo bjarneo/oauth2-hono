@@ -47,8 +47,11 @@ export function createTenantRoutes(options: TenantRoutesOptions) {
     const page = parseInt(c.req.query('page') || '1');
     const offset = (page - 1) * limit;
 
-    const tenants = await storage.tenants.list({ limit, offset });
-    const allTenants = await storage.tenants.list({});
+    // Parallel fetch: paginated list and total count (async-parallel rule)
+    const [tenants, allTenants] = await Promise.all([
+      storage.tenants.list({ limit, offset }),
+      storage.tenants.list({}),
+    ]);
     const total = allTenants.length;
 
     return c.json({
@@ -81,8 +84,11 @@ export function createTenantRoutes(options: TenantRoutesOptions) {
       return c.json({ error: 'not_found', message: 'Tenant not found' }, 404);
     }
 
-    const clients = await storage.clients.listByTenant(id);
-    const signingKeys = await storage.signingKeys.listByTenant(id);
+    // Parallel fetch: clients and signing keys (async-parallel rule)
+    const [clients, signingKeys] = await Promise.all([
+      storage.clients.listByTenant(id),
+      storage.signingKeys.listByTenant(id),
+    ]);
 
     // Count active tokens - we need to add list methods to interfaces
     // For now, return basic stats

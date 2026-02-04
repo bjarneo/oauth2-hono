@@ -45,6 +45,20 @@ export function createClientRoutes(options: ClientRoutesOptions) {
   const { storage } = options;
   const app = new Hono<{ Variables: OAuthVariables }>();
 
+  // Helper to find client by ID or clientId (async-parallel rule - eliminates N+1)
+  async function findClientByIdOrClientId(id: string) {
+    // First try to find by internal ID
+    const client = await storage.clients.findById(id);
+    if (client) return client;
+
+    // If not found, search by clientId across all tenants in parallel
+    const tenants = await storage.tenants.list();
+    const results = await Promise.all(
+      tenants.map((tenant) => storage.clients.findByClientId(tenant.id, id))
+    );
+    return results.find((c) => c !== null) ?? null;
+  }
+
   // List clients for a tenant
   app.get('/tenants/:tenantId/clients', async (c) => {
     const tenantId = c.req.param('tenantId');
@@ -52,13 +66,17 @@ export function createClientRoutes(options: ClientRoutesOptions) {
     const page = parseInt(c.req.query('page') || '1');
     const offset = (page - 1) * limit;
 
-    const tenant = await storage.tenants.findById(tenantId);
+    // Parallel fetch: tenant validation, paginated list, and total count (async-parallel rule)
+    const [tenant, clients, allClients] = await Promise.all([
+      storage.tenants.findById(tenantId),
+      storage.clients.listByTenant(tenantId, { limit, offset }),
+      storage.clients.listByTenant(tenantId),
+    ]);
+
     if (!tenant) {
       return c.json({ error: 'not_found', message: 'Tenant not found' }, 404);
     }
 
-    const clients = await storage.clients.listByTenant(tenantId, { limit, offset });
-    const allClients = await storage.clients.listByTenant(tenantId);
     const total = allClients.length;
 
     return c.json({
@@ -97,18 +115,7 @@ export function createClientRoutes(options: ClientRoutesOptions) {
   // Get client by ID or clientId
   app.get('/clients/:id', async (c) => {
     const id = c.req.param('id');
-
-    // First try to find by internal ID
-    let client = await storage.clients.findById(id);
-
-    // If not found, try to find by clientId across all tenants
-    if (!client) {
-      const tenants = await storage.tenants.list();
-      for (const tenant of tenants) {
-        client = await storage.clients.findByClientId(tenant.id, id);
-        if (client) break;
-      }
-    }
+    const client = await findClientByIdOrClientId(id);
 
     if (!client) {
       return c.json({ error: 'not_found', message: 'Client not found' }, 404);
@@ -121,18 +128,7 @@ export function createClientRoutes(options: ClientRoutesOptions) {
   app.put('/clients/:id', zValidator('json', updateClientSchema), async (c) => {
     const id = c.req.param('id');
     const input = c.req.valid('json');
-
-    // First try to find by internal ID
-    let existing = await storage.clients.findById(id);
-
-    // If not found, try to find by clientId across all tenants
-    if (!existing) {
-      const tenants = await storage.tenants.list();
-      for (const tenant of tenants) {
-        existing = await storage.clients.findByClientId(tenant.id, id);
-        if (existing) break;
-      }
-    }
+    const existing = await findClientByIdOrClientId(id);
 
     if (!existing) {
       return c.json({ error: 'not_found', message: 'Client not found' }, 404);
@@ -145,18 +141,7 @@ export function createClientRoutes(options: ClientRoutesOptions) {
   // Delete client
   app.delete('/clients/:id', async (c) => {
     const id = c.req.param('id');
-
-    // First try to find by internal ID
-    let existing = await storage.clients.findById(id);
-
-    // If not found, try to find by clientId across all tenants
-    if (!existing) {
-      const tenants = await storage.tenants.list();
-      for (const tenant of tenants) {
-        existing = await storage.clients.findByClientId(tenant.id, id);
-        if (existing) break;
-      }
-    }
+    const existing = await findClientByIdOrClientId(id);
 
     if (!existing) {
       return c.json({ error: 'not_found', message: 'Client not found' }, 404);
@@ -169,18 +154,7 @@ export function createClientRoutes(options: ClientRoutesOptions) {
   // Regenerate client secret
   app.post('/clients/:id/regenerate-secret', async (c) => {
     const id = c.req.param('id');
-
-    // First try to find by internal ID
-    let existing = await storage.clients.findById(id);
-
-    // If not found, try to find by clientId across all tenants
-    if (!existing) {
-      const tenants = await storage.tenants.list();
-      for (const tenant of tenants) {
-        existing = await storage.clients.findByClientId(tenant.id, id);
-        if (existing) break;
-      }
-    }
+    const existing = await findClientByIdOrClientId(id);
 
     if (!existing) {
       return c.json({ error: 'not_found', message: 'Client not found' }, 404);

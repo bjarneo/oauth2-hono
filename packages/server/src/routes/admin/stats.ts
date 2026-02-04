@@ -13,13 +13,12 @@ export function createStatsRoutes(options: StatsRoutesOptions) {
   // Get dashboard stats
   app.get('/', async (c) => {
     const tenants = await storage.tenants.list({});
-    let clientCount = 0;
 
-    // Count clients across all tenants
-    for (const tenant of tenants) {
-      const clients = await storage.clients.listByTenant(tenant.id);
-      clientCount += clients.length;
-    }
+    // Parallel fetch: clients for all tenants (async-parallel rule - eliminates N+1)
+    const clientLists = await Promise.all(
+      tenants.map((tenant) => storage.clients.listByTenant(tenant.id))
+    );
+    const clientCount = clientLists.reduce((sum, clients) => sum + clients.length, 0);
 
     return c.json({
       tenantCount: tenants.length,

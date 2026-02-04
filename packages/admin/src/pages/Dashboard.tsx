@@ -2,39 +2,47 @@ import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Building2, Users, KeyRound, Coins, Link2 } from 'lucide-react';
 import { getDashboardStats } from '@/api/client';
+import type { DashboardStats } from '@oauth2-hono/shared';
+import type { LucideIcon } from 'lucide-react';
+
+// Hoisted outside component to prevent re-creation on every render (rendering-hoist-jsx rule)
+const cardConfig: Array<{
+  title: string;
+  key: keyof DashboardStats;
+  icon: LucideIcon;
+  description: string;
+}> = [
+  {
+    title: 'Total Tenants',
+    key: 'tenantCount',
+    icon: Building2,
+    description: 'Active tenants',
+  },
+  {
+    title: 'Total Clients',
+    key: 'clientCount',
+    icon: Users,
+    description: 'Registered OAuth clients',
+  },
+  {
+    title: 'Active Refresh Tokens',
+    key: 'activeRefreshTokens',
+    icon: Coins,
+    description: 'Non-revoked tokens',
+  },
+  {
+    title: 'Identity Providers',
+    key: 'identityProviderCount',
+    icon: Link2,
+    description: 'Federated IdPs',
+  },
+];
 
 export function Dashboard() {
   const { data: stats, isLoading } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: getDashboardStats,
   });
-
-  const cards = [
-    {
-      title: 'Total Tenants',
-      value: stats?.tenantCount ?? 0,
-      icon: Building2,
-      description: 'Active tenants',
-    },
-    {
-      title: 'Total Clients',
-      value: stats?.clientCount ?? 0,
-      icon: Users,
-      description: 'Registered OAuth clients',
-    },
-    {
-      title: 'Active Refresh Tokens',
-      value: stats?.activeRefreshTokens ?? 0,
-      icon: Coins,
-      description: 'Non-revoked tokens',
-    },
-    {
-      title: 'Identity Providers',
-      value: stats?.identityProviderCount ?? 0,
-      icon: Link2,
-      description: 'Federated IdPs',
-    },
-  ];
 
   return (
     <div className="space-y-6">
@@ -44,7 +52,7 @@ export function Dashboard() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {cards.map((card) => (
+        {cardConfig.map((card) => (
           <Card key={card.title}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">{card.title}</CardTitle>
@@ -52,7 +60,7 @@ export function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">
-                {isLoading ? '...' : card.value.toLocaleString()}
+                {isLoading ? '...' : ((stats?.[card.key] ?? 0) as number).toLocaleString()}
               </div>
               <p className="text-xs text-muted-foreground">{card.description}</p>
             </CardContent>

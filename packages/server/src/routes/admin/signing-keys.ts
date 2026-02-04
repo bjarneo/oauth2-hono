@@ -21,12 +21,16 @@ export function createSigningKeyRoutes(options: SigningKeyRoutesOptions) {
   app.get('/tenants/:tenantId/signing-keys', async (c) => {
     const tenantId = c.req.param('tenantId');
 
-    const tenant = await storage.tenants.findById(tenantId);
+    // Parallel fetch: tenant validation and keys list (async-parallel rule)
+    const [tenant, keys] = await Promise.all([
+      storage.tenants.findById(tenantId),
+      storage.signingKeys.listByTenant(tenantId),
+    ]);
+
     if (!tenant) {
       return c.json({ error: 'not_found', message: 'Tenant not found' }, 404);
     }
 
-    const keys = await storage.signingKeys.listByTenant(tenantId);
     return c.json(keys);
   });
 
@@ -53,13 +57,15 @@ export function createSigningKeyRoutes(options: SigningKeyRoutesOptions) {
   app.post('/tenants/:tenantId/signing-keys/rotate', async (c) => {
     const tenantId = c.req.param('tenantId');
 
-    const tenant = await storage.tenants.findById(tenantId);
+    // Parallel fetch: tenant validation and current primary key (async-parallel rule)
+    const [tenant, currentPrimary] = await Promise.all([
+      storage.tenants.findById(tenantId),
+      storage.signingKeys.getPrimary(tenantId),
+    ]);
+
     if (!tenant) {
       return c.json({ error: 'not_found', message: 'Tenant not found' }, 404);
     }
-
-    // Get current primary key
-    const currentPrimary = await storage.signingKeys.getPrimary(tenantId);
     const algorithm = currentPrimary?.algorithm || 'RS256';
 
     // Create new primary key

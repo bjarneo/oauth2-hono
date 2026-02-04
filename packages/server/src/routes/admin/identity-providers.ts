@@ -58,16 +58,25 @@ export function createIdentityProviderRoutes(options: IdentityProviderRoutesOpti
     const tenantId = c.req.param('tenantId');
     const idpStorage = getIdpStorage();
 
-    const tenant = await storage.tenants.findById(tenantId);
+    if (!idpStorage) {
+      // Early return if storage not configured - no need to validate tenant
+      const tenant = await storage.tenants.findById(tenantId);
+      if (!tenant) {
+        return c.json({ error: 'not_found', message: 'Tenant not found' }, 404);
+      }
+      return c.json([]);
+    }
+
+    // Parallel fetch: tenant validation and providers list (async-parallel rule)
+    const [tenant, providers] = await Promise.all([
+      storage.tenants.findById(tenantId),
+      idpStorage.listByTenant(tenantId),
+    ]);
+
     if (!tenant) {
       return c.json({ error: 'not_found', message: 'Tenant not found' }, 404);
     }
 
-    if (!idpStorage) {
-      return c.json([]);
-    }
-
-    const providers = await idpStorage.listByTenant(tenantId);
     return c.json(providers);
   });
 
