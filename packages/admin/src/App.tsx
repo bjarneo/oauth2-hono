@@ -13,6 +13,7 @@ import { TokenList } from './pages/tokens/TokenList';
 import { IdentityProviderList } from './pages/identity-providers/IdentityProviderList';
 import { IdentityProviderCreate } from './pages/identity-providers/IdentityProviderCreate';
 import { IdentityProviderDetail } from './pages/identity-providers/IdentityProviderDetail';
+import { Help } from './pages/help/Help';
 import { Toaster } from './components/ui/toaster';
 
 export function App() {
@@ -44,6 +45,9 @@ export function App() {
           <Route path="tenants/:tenantId/identity-providers" element={<IdentityProviderList />} />
           <Route path="tenants/:tenantId/identity-providers/new" element={<IdentityProviderCreate />} />
           <Route path="tenants/:tenantId/identity-providers/:providerId" element={<IdentityProviderDetail />} />
+
+          {/* Help */}
+          <Route path="help" element={<Help />} />
         </Route>
       </Routes>
       <Toaster />

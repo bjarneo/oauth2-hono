@@ -11,11 +11,13 @@ import {
   Coins,
   Link2,
   ChevronRight,
+  BookOpen,
 } from 'lucide-react';
 
 const mainNav = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Tenants', href: '/tenants', icon: Building2 },
+  { name: 'Help', href: '/help', icon: BookOpen },
 ];
 
 const tenantNav = [
@@ -122,6 +124,8 @@ function Breadcrumbs() {
 
     if (part === 'dashboard') {
       breadcrumbs.push({ name: 'Dashboard', href: path });
+    } else if (part === 'help') {
+      breadcrumbs.push({ name: 'Help', href: path });
     } else if (part === 'tenants') {
       breadcrumbs.push({ name: 'Tenants', href: path });
     } else if (part === 'clients') {
